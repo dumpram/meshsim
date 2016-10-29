@@ -6,6 +6,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.github.dumpram.mesh.gateway.MeshGateway;
 import com.github.dumpram.mesh.node.Location;
 import com.github.dumpram.mesh.node.MeshNode;
 
@@ -24,29 +25,26 @@ public class MeshRunner {
 		Thread[] threads = new Thread[nodeCount];
 	
 		List<MeshNode> remoteNodes = new ArrayList<MeshNode>();
-		MeshNode gateway = null;
+		MeshGateway gateway = null;
 		
 		for (int i = 0; i < confLines.size(); i++) {
 			String[] parts = confLines.get(i).split(" ");
 			int x = Integer.parseInt(parts[0]);
 			int y = Integer.parseInt(parts[1]);
 			boolean isGateway = (i == 0) ? true : false;
-			MeshNode current = new MeshNode(i, new Location(x, y), isGateway);
-			threads[i] = new Thread(current);
-			if (!isGateway) {
-				remoteNodes.add(current);
-				gateway.addChildNode(current);
+			if (isGateway) {
+				gateway = new MeshGateway(i, new Location(x, y));
+				threads[i] = new Thread(gateway);
 			} else {
-				gateway = current;
+				MeshNode current = new MeshNode(i, new Location(x, y));
+				threads[i] = new Thread(current);
+				remoteNodes.add(current);
+				gateway.addNode(current);
 			}
 		}
-		
 		
 		for (int i = 0; i < confLines.size(); i++) {
 			threads[i].start();
 		}
-		
-
-		//new MeshNode(0, new Location(0, 0)).run();
 	}
 }

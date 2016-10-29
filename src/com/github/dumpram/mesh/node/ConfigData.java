@@ -21,7 +21,6 @@ public class ConfigData {
 		for (MeshNode i : list) {
 			childNodeList.add(i);
 		}
-		//Collections.copy(childNodeList, list);
 		parentNodeList = new ArrayList<MeshNode>();
 	}
 	

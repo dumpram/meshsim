@@ -1,5 +1,6 @@
 package com.github.dumpram.mesh.network;
 
+import com.github.dumpram.mesh.data.AbstractMeshData;
 import com.github.dumpram.mesh.gateway.MeshGateway;
 import com.github.dumpram.mesh.node.ConfigData;
 import com.github.dumpram.mesh.node.Location;
@@ -94,6 +95,14 @@ public class MeshNetwork implements Runnable {
 			}
 		}
 		return forExport;
+	}
+	
+	public boolean sendData(MeshNode sender, MeshNode listener, AbstractMeshData data) {
+		boolean sendable = isSendable(sender, listener);
+		synchronized(listener) {
+			listener.receiveData(data);
+		}
+		return sendable;
 	}
 	
 	public boolean isSendable(MeshNode sender, MeshNode listener) {

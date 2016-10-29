@@ -3,39 +3,25 @@ package com.github.dumpram.mesh.node;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Timer;
 
+import com.github.dumpram.mesh.data.AbstractMeshData;
 import com.github.dumpram.mesh.network.MeshNetwork;
 
 public class MeshNode implements Runnable, Comparable<MeshNode> {
-	
-	private static final int T = 60;
-	
-	private static final int TIMEOUT = 5;
-	
-	private static final int N = 1367; // this should be calculated
 	
 	private static final int HIGHEST_START_NUMBER = 5;
 	
 	private static final int DELTA = 1000; // millis
 	
-	private List<MeshNode> childNodes;
-	
-	private List<MeshNode> parentNodes;
-	
 	private Location location;
 	
-	private ConfigData configData;
+	protected ConfigData configData;
 	
 	private MeshData currentMeshData;
 	
 	private MeshNetwork meshNetwork;
 	
 	private boolean configDataSet;
-	
-	private int status;
-	
-	private boolean gateway;
 	
 	private boolean data = false;
 	
@@ -47,14 +33,14 @@ public class MeshNode implements Runnable, Comparable<MeshNode> {
 	
 	private boolean isListening = true;
 	
-	public MeshNode(int id, Location location, boolean gateway) {
-		childNodes = new ArrayList<MeshNode>();
-		parentNodes = new ArrayList<MeshNode>();
-		status = 0;
+	private MeshNodeState state;
+	
+	private MeshNodeEvent event;
+	
+	public MeshNode(int id, Location location) {
 		this.location = location;
 		this.id = id;
 		meshNetwork = MeshNetwork.getInstance();
-		this.gateway = gateway;
 	}
 	
 	private void onWakeUp()  {
@@ -66,27 +52,23 @@ public class MeshNode implements Runnable, Comparable<MeshNode> {
 		waitForStart();
 	}
 	
-	private void waitForConfigAck() {
+	protected void waitForConfigAck() {
 		log(configData.getChildNodes().toString());
-		startListening();
-		if (configData.getChildNodes().isEmpty()) {
-			log("Sending ack to parent: " + configData.getParent());
-			meshNetwork.sendConfigAckToParent(this, configData.getParent(), configData.getParent().configData);
-		} 
-		else {
+		
+		if (!configData.getChildNodes().isEmpty()) {
+			startListening();
 			while(!configAck()) {
 				sleep(10);
 			}
 			log("Got config ack");
 			log(configData.getChildNodes().toString());
-			if (!gateway) {
-				meshNetwork.sendConfigAckToParent(this, configData.getParent(), configData.getParent().configData);
-			}
+			stopListening();
 		}
-		stopListening();
+		log("Sending ack to parent: " + configData.getParent());
+		meshNetwork.sendConfigAckToParent(this, configData.getParent(), configData.getParent().configData);	
 	}
 
-	private void sleep(int millis) {
+	protected void sleep(int millis) {
 		try {
 			Thread.sleep(millis);
 		} catch (InterruptedException e) {
@@ -94,7 +76,7 @@ public class MeshNode implements Runnable, Comparable<MeshNode> {
 		}
 	}
 
-	private boolean configAck() {
+	protected boolean configAck() {
 		boolean forExport = true;
 		for (MeshNode i : configData.configAckMap.keySet()) {
 			forExport &= configData.configAckMap.get(i);
@@ -137,7 +119,7 @@ public class MeshNode implements Runnable, Comparable<MeshNode> {
 	// dominant over other, pretending as he or she is the
 	// parent, because it is not
 	// SOLUTION: we can probe all nodes and then send data
-	private void propagateConfigData() {
+	protected void propagateConfigData() {
 		List<MeshNode> potentialChildren = configData.getChildNodes();
 		List<MeshNode> notChildren = new ArrayList<MeshNode>();
 		List<MeshNode> realChildren = new ArrayList<MeshNode>();
@@ -218,36 +200,22 @@ public class MeshNode implements Runnable, Comparable<MeshNode> {
 	// i podaci se iz njega mogu neprestano vaditi
 	@Override
 	public void run() {
-		if (gateway) {
-			gatewayConfigureData();
-			int maxStart = gatewayFindMaxStartNumber();
-			gatewayConfigureMaxStartNumber(maxStart);
-		}
+		onWakeUp();
 		//while(true) {
-			if (!gateway) {
-				onWakeUp();
-				//while(true) {
-					int deltas = 0;
-					Collections.sort(configData.getChildNodes());
-					for (int i = 0; i < configData.getChildNodes().size(); i++) {
-						int current = HIGHEST_START_NUMBER - configData.getChildNodes().get(i).id;
-						log("Child index: " + i + " deltas: " + deltas + " current: " + current);
-						sleep((current - deltas) * DELTA);
-						log("Child index: " + i + " deltas: " + deltas);
-						deltas += (current - deltas);
-						getDataFromNode(configData.getChildNodes().get(i).id);
-					}
-					log("Deltas: " + deltas);
-					int current = HIGHEST_START_NUMBER - id;
-					sleep((current - deltas) * DELTA);
-					forwardDataToMesh();
-				//	sleep(10000000);
-				//}
+			int deltas = 0;
+			Collections.sort(configData.getChildNodes());
+			for (int i = 0; i < configData.getChildNodes().size(); i++) {
+				int current = HIGHEST_START_NUMBER - configData.getChildNodes().get(i).id;
+				log("Child index: " + i + " deltas: " + deltas + " current: " + current);
+				sleep((current - deltas) * DELTA);
+				log("Child index: " + i + " deltas: " + deltas);
+				deltas += (current - deltas);
+				getDataFromNode(configData.getChildNodes().get(i).id);
 			}
-			if (gateway) {
-				gatewayGetData();
-				gatewayPropagateData();
-			}
+			int current = HIGHEST_START_NUMBER - id;
+			sleep((current - deltas) * DELTA);
+			forwardDataToMesh();
+			//sleep(10000000);
 		//}
 	}
 	 
@@ -262,30 +230,26 @@ public class MeshNode implements Runnable, Comparable<MeshNode> {
 		stopListening();
 	}
 
-	private void gatewayConfigureMaxStartNumber(int maxStart) {
-		// TODO Auto-generated method stub
-		
-	}
-
-	private int gatewayFindMaxStartNumber() {
-		// TODO Auto-generated method stub
-		return 0;
-	}
-
-	private void gatewayPropagateData() {
-		
-	}
-
-	private void gatewayGetData() {
-		
-	}
-
-	private void gatewayConfigureData() {
-		configData = new ConfigData(childNodes);
-		propagateConfigData();
-		waitForConfigAck();
-	}
-
+	
+	// proposal for waiting routines
+	// wait functions are all similar 
+	// while loop with some condition and little sleep 
+	// waitForEvent()
+	// events are on different levels
+	// for know 2 levels 
+	// 1fst level 1 event: data available event
+	// 2nd level deduced from data available event:
+	// probe_config_data available
+	// probe_config_ack
+	// etc.
+	//
+	
+	private void waitForEvent(MeshNodeEvent e) {
+		while (this.event.compareTo(e) != 0) {
+			sleep(1);
+		}
+	}	
+	
 	public Location getLocation() {
 		return location;
 	}
@@ -296,28 +260,6 @@ public class MeshNode implements Runnable, Comparable<MeshNode> {
 
 	public void setLocation(Location location) {
 		this.location = location;
-	}
-
-	// set alarm for child with shortest family line
-	// see Timing problem for explanation
-	private void setAlarmForFirstChild() {
-	//	nodeTimer.schedule(nodeTimerTask, T + N * TIMEOUT);
-	}
-
-	public int getStatus() {
-		return status;
-	}
-	
-	public void setStatus(int status) {
-		this.status = status;
-	}
-	
-	public void addChildNode(MeshNode child) {
-		childNodes.add(child);
-	}
-	
-	public void addParentNode(MeshNode parent) {
-		parentNodes.add(parent);
 	}
 
 	public void setConfigData(ConfigData configData) {
@@ -356,23 +298,42 @@ public class MeshNode implements Runnable, Comparable<MeshNode> {
 	// the greatest start is one which dictates zero moment on start 
 	// every other is calculated as (START_NUMBER - GREATEST) * DELTA...
 	
-	
-	private void log(String input) {
-		System.out.println("Node " + id + ": " + input);
+	public void setMeshData() {
+		data = true;
+	}
+
+	public void receiveData(AbstractMeshData data) {
+		// config data 
+		// 		- produces: config data available event
+		//		- should contain: child nodes, parent nodes etc. 
+		//		- config ack map
+		// config ack data
+		//		- produces: config ack event
+		//		- should change config data
+		// normal data
+		//		- produces: normal data available event
+		//		- should contain: some form of data??		
 	}
 	
+	protected void log(String input) {
+		System.out.println("Node " + id + ": " + input);
+	}
+		
+	@Override
+	public int compareTo(MeshNode o) {
+		return -Integer.compare(id, o.id);
+	}
+
 	@Override
 	public String toString() {
 		return Integer.toString(id);
 	}
-	
+
 	@Override
 	public int hashCode() {
 		final int prime = 31;
 		int result = 1;
-		result = prime * result + ((childNodes == null) ? 0 : childNodes.hashCode());
 		result = prime * result + id;
-		result = prime * result + ((parentNodes == null) ? 0 : parentNodes.hashCode());
 		return result;
 	}
 
@@ -385,30 +346,11 @@ public class MeshNode implements Runnable, Comparable<MeshNode> {
 		if (getClass() != obj.getClass())
 			return false;
 		MeshNode other = (MeshNode) obj;
-		if (childNodes == null) {
-			if (other.childNodes != null)
-				return false;
-		} else if (!childNodes.equals(other.childNodes))
-			return false;
 		if (id != other.id)
-			return false;
-		if (parentNodes == null) {
-			if (other.parentNodes != null)
-				return false;
-		} else if (!parentNodes.equals(other.parentNodes))
 			return false;
 		return true;
 	}
-
-	public void setMeshData() {
-		data = true;
-		
-	}
-
-	@Override
-	public int compareTo(MeshNode o) {
-		return -Integer.compare(id, o.id);
-	}
 }
+
 
 
