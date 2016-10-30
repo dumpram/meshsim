@@ -108,5 +108,13 @@ public class MeshNetwork implements Runnable {
 	public boolean isSendable(MeshNode sender, MeshNode listener) {
 		return areCloseEnough(sender, listener) && listener.isListening();
 	}
+
+	public boolean sendStartData(MeshNode sender, MeshNode listener, AbstractMeshData data) {
+		boolean sendable = isSendable(sender, listener);
+		synchronized(listener) {
+			listener.startData(data);
+		}
+		return sendable;
+	}
 }
 	

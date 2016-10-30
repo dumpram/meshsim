@@ -12,6 +12,7 @@ public class NodeTimerTask extends TimerTask {
 	
 	@Override
 	public void run() {
-		node.run();
+		node.log("Next interval pending!");
+		node.nextInterval();
 	}
 }

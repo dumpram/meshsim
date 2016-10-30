@@ -5,6 +5,8 @@ import java.util.HashMap;
 import java.util.List;
 
 public class ConfigData {
+	
+	private MeshNode node;
 
 	private List<MeshNode> childNodeList;
 	
@@ -12,11 +14,8 @@ public class ConfigData {
 	
 	public HashMap<MeshNode, Boolean> configAckMap = new HashMap<MeshNode, Boolean>();
 	
-	public int maxStartNumber = -1;
-	
-	public int delta; // milliseconds
-	
-	public ConfigData(List<MeshNode> list) {
+	public ConfigData(MeshNode node, List<MeshNode> list) {
+		this.node = node;
 		childNodeList = new ArrayList<MeshNode>();
 		for (MeshNode i : list) {
 			childNodeList.add(i);

@@ -3,6 +3,7 @@ package com.github.dumpram.mesh.gateway;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.github.dumpram.mesh.network.MeshNetwork;
 import com.github.dumpram.mesh.node.ConfigData;
 import com.github.dumpram.mesh.node.Location;
 import com.github.dumpram.mesh.node.MeshNode;
@@ -18,13 +19,20 @@ public class MeshGateway extends MeshNode {
 
 	public void run() {
 		gatewayConfigureData();
+		gatewayStartData();
 	}
 	
 	private void gatewayConfigureData() {
-		configData = new ConfigData(childNodes);
+		configData = new ConfigData(null, childNodes);
 		propagateConfigData();
 		waitForConfigAck();
 		log("Gateway configuration ended!");
+	}
+	
+	private void gatewayStartData() {
+		for (MeshNode i : configData.getChildNodes()) {
+			MeshNetwork.getInstance().sendStartData(this, i, null);
+		}
 	}
 	
 	@Override

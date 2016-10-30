@@ -2,16 +2,20 @@ package com.github.dumpram.mesh.node;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Date;
 import java.util.List;
+import java.util.Timer;
+import java.util.TimerTask;
 
 import com.github.dumpram.mesh.data.AbstractMeshData;
+import com.github.dumpram.mesh.data.MeshDataType;
 import com.github.dumpram.mesh.network.MeshNetwork;
 
 public class MeshNode implements Runnable, Comparable<MeshNode> {
 	
-	private static final int HIGHEST_START_NUMBER = 5;
+	private static final int HIGHEST_START_NUMBER = 5; // this can be number of nodes in list
 	
-	private static final int DELTA = 1000; // millis
+	private static final int DELTA = 500; // millis
 	
 	private Location location;
 	
@@ -33,9 +37,13 @@ public class MeshNode implements Runnable, Comparable<MeshNode> {
 	
 	private boolean isListening = true;
 	
+	private boolean startEnable = false;
+	
 	private MeshNodeState state;
 	
 	private MeshNodeEvent event;
+	
+	private boolean nextInterval;
 	
 	public MeshNode(int id, Location location) {
 		this.location = location;
@@ -43,53 +51,64 @@ public class MeshNode implements Runnable, Comparable<MeshNode> {
 		meshNetwork = MeshNetwork.getInstance();
 	}
 	
+	// postoji niz brojeva
+	// to su identifikatori čvorova
+	// trenutni čvor nađe sebe i proba poslati svima uokolo
+	// izbaci sebe i ostavi preostale čvorove i pošalje im to
+	// potrebno bi bilo poslati i neku konfiguracijsku shemu
+	// koja ce pospojiti cvorove medjusobno
+	// alternativa je algoritam koji ce stvoriti optimalno stablo
+	// gateway je ustvari posebna vrsta čvora s beskonačnim bufferom
+	// i podaci se iz njega mogu neprestano vaditi
+	@Override
+	public void run() {
+		onWakeUp();
+		nextInterval = false;
+		while(!startEnable) {
+			sleep(1);
+		}
+		if (!configData.getChildNodes().isEmpty()) {
+			for (MeshNode i : configData.getChildNodes()) {
+				meshNetwork.sendStartData(this, i, null);
+			}
+		}
+		Timer t = new Timer();
+		t.schedule(new NodeTimerTask(this), 0, 20 * 1000);
+		do {
+			waitForDataFromMesh();
+			forwardDataToMesh();
+			//sleep(10000000);
+			while(!nextInterval) {
+				sleep(1);
+			}
+			nextInterval = false;
+		} while (true);
+	}
+
+	private void waitForDataFromMesh() {
+		int deltas = 0;
+		Collections.sort(configData.getChildNodes());
+		for (int i = 0; i < configData.getChildNodes().size(); i++) {
+			int current = HIGHEST_START_NUMBER - configData.getChildNodes().get(i).startNumber;
+			log("Child index: " + i + " deltas: " + deltas + " current: " + current);
+			sleep((current - deltas) * DELTA);
+			log("Child index: " + i + " deltas: " + deltas);
+			deltas += (current - deltas);
+			getDataFromNode(configData.getChildNodes().get(i).id);
+		}
+		int current = HIGHEST_START_NUMBER - startNumber;
+		sleep((current - deltas) * DELTA);
+	}
+	
 	private void onWakeUp()  {
 		if (isConfigured) {
 			return;
 		}
 		configureNode();
-		waitForConfigAck();
+		waitForConfigAck();// 
 		waitForStart();
 	}
 	
-	protected void waitForConfigAck() {
-		log(configData.getChildNodes().toString());
-		
-		if (!configData.getChildNodes().isEmpty()) {
-			startListening();
-			while(!configAck()) {
-				sleep(10);
-			}
-			log("Got config ack");
-			log(configData.getChildNodes().toString());
-			stopListening();
-		}
-		log("Sending ack to parent: " + configData.getParent());
-		meshNetwork.sendConfigAckToParent(this, configData.getParent(), configData.getParent().configData);	
-	}
-
-	protected void sleep(int millis) {
-		try {
-			Thread.sleep(millis);
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		}
-	}
-
-	protected boolean configAck() {
-		boolean forExport = true;
-		for (MeshNode i : configData.configAckMap.keySet()) {
-			forExport &= configData.configAckMap.get(i);
-		}	
-		return forExport;
-	}
-
-	private void waitForStart() {
-		startListening();
-		// i think this should be handled somehow
-		stopListening();
-	}
-
 	private void configureNode() {
 		waitConfigData(); // wait for node list
 		propagateConfigData(); // remove yourself from list (maybe create copy at
@@ -109,7 +128,6 @@ public class MeshNode implements Runnable, Comparable<MeshNode> {
 		// waiting means listening for start beacon from gateway
 		isConfigured = true;
 	}
-	
 	
 	// when some node successfully probes its child
 	// child should wait sometime before it starts probing
@@ -131,7 +149,8 @@ public class MeshNode implements Runnable, Comparable<MeshNode> {
 			}
 		}
 		for (MeshNode i : realChildren) {
-			ConfigData forExport = new ConfigData(notChildren);
+			i.setStartNumber(realChildren.indexOf(i) + this.startNumber);
+			ConfigData forExport = new ConfigData(i, notChildren);
 			forExport.addParent(this);
 			forExport.removeChildNode(i);
 			meshNetwork.sendConfigData(i, this, forExport);
@@ -140,12 +159,6 @@ public class MeshNode implements Runnable, Comparable<MeshNode> {
 		configData.setChildNodes(realChildren);
 	}
 	
-	
-
-	public boolean isListening() {
-		return isListening;
-	}
-
 	private void waitConfigData() {
 		startListening();
 		while(!configDataSet) {
@@ -154,15 +167,45 @@ public class MeshNode implements Runnable, Comparable<MeshNode> {
 		stopListening();
 	}
 	
-
-	private void stopListening() {
-		isListening = false;
+	protected void waitForConfigAck() {
+		log(configData.getChildNodes().toString());
 		
+		if (!configData.getChildNodes().isEmpty()) {
+			startListening();
+			while(!configAck()) {
+				sleep(10);
+			}
+			log("Got config ack");
+			log(configData.getChildNodes().toString());
+			stopListening();
+		}
+		log("Sending ack to parent: " + configData.getParent());
+		meshNetwork.sendConfigAckToParent(this, configData.getParent(), configData.getParent().configData);	
+	}
+	
+	private void getDataFromNode(int i) {
+		log("Waiting for data from: " + i);
+		startListening();
+		while(!data) {
+			sleep(1);
+		}
+		data = false; // reset for next node
+		log("Got data from: " + i);
+		stopListening();
+	}
+	
+	protected boolean configAck() {
+		boolean forExport = true;
+		for (MeshNode i : configData.configAckMap.keySet()) {
+			forExport &= configData.configAckMap.get(i);
+		}	
+		return forExport;
 	}
 
-	private void startListening() {
-		isListening = true;
-		
+	private void waitForStart() {
+		startListening();
+		// i think this should be handled somehow
+		stopListening();
 	}
 
 	private void getDataFromMesh() {
@@ -189,48 +232,6 @@ public class MeshNode implements Runnable, Comparable<MeshNode> {
 		log("Number of misses: " + cnt);
 	}
 	
-	// postoji niz brojeva
-	// to su identifikatori čvorova
-	// trenutni čvor nađe sebe i proba poslati svima uokolo
-	// izbaci sebe i ostavi preostale čvorove i pošalje im to
-	// potrebno bi bilo poslati i neku konfiguracijsku shemu
-	// koja ce pospojiti cvorove medjusobno
-	// alternativa je algoritam koji ce stvoriti optimalno stablo
-	// gateway je ustvari posebna vrsta čvora s beskonačnim bufferom
-	// i podaci se iz njega mogu neprestano vaditi
-	@Override
-	public void run() {
-		onWakeUp();
-		//while(true) {
-			int deltas = 0;
-			Collections.sort(configData.getChildNodes());
-			for (int i = 0; i < configData.getChildNodes().size(); i++) {
-				int current = HIGHEST_START_NUMBER - configData.getChildNodes().get(i).id;
-				log("Child index: " + i + " deltas: " + deltas + " current: " + current);
-				sleep((current - deltas) * DELTA);
-				log("Child index: " + i + " deltas: " + deltas);
-				deltas += (current - deltas);
-				getDataFromNode(configData.getChildNodes().get(i).id);
-			}
-			int current = HIGHEST_START_NUMBER - id;
-			sleep((current - deltas) * DELTA);
-			forwardDataToMesh();
-			//sleep(10000000);
-		//}
-	}
-	 
-	private void getDataFromNode(int i) {
-		log("Waiting for data from: " + i);
-		startListening();
-		while(!data) {
-			sleep(1);
-		}
-		data = false; // reset for next node
-		log("Got data from: " + i);
-		stopListening();
-	}
-
-	
 	// proposal for waiting routines
 	// wait functions are all similar 
 	// while loop with some condition and little sleep 
@@ -243,7 +244,6 @@ public class MeshNode implements Runnable, Comparable<MeshNode> {
 	// probe_config_ack
 	// etc.
 	//
-	
 	private void waitForEvent(MeshNodeEvent e) {
 		while (this.event.compareTo(e) != 0) {
 			sleep(1);
@@ -296,13 +296,18 @@ public class MeshNode implements Runnable, Comparable<MeshNode> {
 	// probe configuration was acknowledged
 	// however every node should only know the greatest start number because
 	// the greatest start is one which dictates zero moment on start 
-	// every other is calculated as (START_NUMBER - GREATEST) * DELTA...
-	
+	// every other is calculated as (START_NUMBER - GREATEST) * DELTA...	
 	public void setMeshData() {
 		data = true;
 	}
 
 	public void receiveData(AbstractMeshData data) {
+		MeshDataType type = data.getDataType();
+		
+		event = type.produceEvent();
+		state = state.next(event);
+		
+		
 		// config data 
 		// 		- produces: config data available event
 		//		- should contain: child nodes, parent nodes etc. 
@@ -315,13 +320,43 @@ public class MeshNode implements Runnable, Comparable<MeshNode> {
 		//		- should contain: some form of data??		
 	}
 	
+	private void stopListening() {
+		isListening = false;
+		
+	}
+
+	private void startListening() {
+		isListening = true;
+		
+	}
+	
+	public boolean isListening() {
+		return isListening;
+	}
+	
+	public int getStartNumber() {
+		return startNumber;
+	}
+
+	public void setStartNumber(int startNumber) {
+		this.startNumber = startNumber;
+	}
+
 	protected void log(String input) {
 		System.out.println("Node " + id + ": " + input);
+	}
+	
+	protected void sleep(int millis) {
+		try {
+			Thread.sleep(millis);
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		}
 	}
 		
 	@Override
 	public int compareTo(MeshNode o) {
-		return -Integer.compare(id, o.id);
+		return -Integer.compare(startNumber, o.startNumber);
 	}
 
 	@Override
@@ -349,6 +384,14 @@ public class MeshNode implements Runnable, Comparable<MeshNode> {
 		if (id != other.id)
 			return false;
 		return true;
+	}
+	
+	public void nextInterval() {
+		nextInterval = true;
+	}
+
+	public void startData(AbstractMeshData data2) {
+		startEnable = true;		
 	}
 }
 
