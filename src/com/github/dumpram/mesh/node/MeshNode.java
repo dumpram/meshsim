@@ -67,19 +67,19 @@ public class MeshNode implements Runnable, Comparable<MeshNode> {
 		while(!startEnable) {
 			sleep(1);
 		}
+		stopListening();
 		if (!configData.getChildNodes().isEmpty()) {
 			for (MeshNode i : configData.getChildNodes()) {
 				meshNetwork.sendStartData(this, i, null);
 			}
 		}
 		Timer t = new Timer();
-		t.schedule(new NodeTimerTask(this), 0, 20 * 1000);
+		t.schedule(new NodeTimerTask(this), 20 * 1000, 20 * 1000);
 		do {
 			waitForDataFromMesh();
 			forwardDataToMesh();
-			//sleep(10000000);
 			while(!nextInterval) {
-				sleep(1);
+				sleep(10);
 			}
 			nextInterval = false;
 		} while (true);
@@ -205,7 +205,7 @@ public class MeshNode implements Runnable, Comparable<MeshNode> {
 	private void waitForStart() {
 		startListening();
 		// i think this should be handled somehow
-		stopListening();
+		// stopListening();
 	}
 
 	private void getDataFromMesh() {
