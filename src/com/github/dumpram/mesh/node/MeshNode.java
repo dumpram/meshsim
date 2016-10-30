@@ -2,10 +2,8 @@ package com.github.dumpram.mesh.node;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Date;
 import java.util.List;
 import java.util.Timer;
-import java.util.TimerTask;
 
 import com.github.dumpram.mesh.data.AbstractMeshData;
 import com.github.dumpram.mesh.data.MeshDataType;
@@ -74,7 +72,7 @@ public class MeshNode implements Runnable, Comparable<MeshNode> {
 			}
 		}
 		Timer t = new Timer();
-		t.schedule(new NodeTimerTask(this), 20 * 1000, 20 * 1000);
+		t.schedule(new NodeTimerTask(this), 10 * 1000, 10 * 1000);
 		do {
 			waitForDataFromMesh();
 			forwardDataToMesh();
