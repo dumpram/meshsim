@@ -17,26 +17,43 @@ import org.jfree.data.xy.XYSeries;
 import org.jfree.data.xy.XYSeriesCollection;
 
 import com.github.dumpram.mesh.gateway.MeshGateway;
+import com.github.dumpram.mesh.network.MeshNetwork;
 import com.github.dumpram.mesh.node.Location;
 import com.github.dumpram.mesh.node.MeshNode;
 
 public class MeshRunner extends JFrame {
 	
-	/**
-	 * Serial version.
-	 */
 	private static final long serialVersionUID = 96088882757497090L;
 
 	private XYSeriesCollection dataset = new XYSeriesCollection();
 	
 	private JFreeChart chart;
 	
-	public MeshRunner(XYSeries gateway, XYSeries nodes) {
+	public MeshRunner(List<MeshNode> nodes, XYSeries gatewaySeries, XYSeries nodeSeries, boolean
+			map) {
 		setTitle("MeshSim v0.0.1");
 		setSize(600, 600);
 		
-		dataset.addSeries(nodes);
-		dataset.addSeries(gateway);
+		if (map) {
+			initChart(gatewaySeries, nodeSeries);
+		} else {
+			initLogMap(nodes);
+		}
+	}
+
+	private void initLogMap(List<MeshNode> nodes) {
+		setLayout(null);
+		for (MeshNode i : nodes) {
+			i.setBounds(i.getBounds());
+		}
+		for (MeshNode i : nodes) {
+			add(i);
+		};
+	}
+
+	private void initChart(XYSeries gatewaySeries, XYSeries nodeSeries) {
+		dataset.addSeries(nodeSeries);
+		dataset.addSeries(gatewaySeries);
 		
 		chart = ChartFactory.createScatterPlot(
 		"Node placement in test field", // title
@@ -49,9 +66,9 @@ public class MeshRunner extends JFrame {
 		);
 		ChartPanel chartPanel = new ChartPanel(chart);
 		chartPanel.setPreferredSize(new java.awt.Dimension(500, 270));
-		setContentPane(chartPanel); 
+		setContentPane(chartPanel);
 	}
-
+	
 	public static void main(String[] args) throws IOException {
 		int nodeCount = 0;
 		
@@ -70,33 +87,39 @@ public class MeshRunner extends JFrame {
 		List<MeshNode> remoteNodes = new ArrayList<MeshNode>();
 		MeshGateway gateway = null;
 		
+		List<Integer> ids = new ArrayList<Integer>();
+		
 		for (int i = 0; i < confLines.size(); i++) {
 			String[] parts = confLines.get(i).split(" ");
 			int x = Integer.parseInt(parts[0]);
 			int y = Integer.parseInt(parts[1]);
 			boolean isGateway = (i == 0) ? true : false;
+			MeshNode current = new MeshNode(i, new Location(x, y));
 			if (isGateway) {
 				gatewaySeries.add(x, y);
 				gateway = new MeshGateway(i, new Location(x, y));
 				threads[i] = new Thread(gateway);
 			} else {
 				nodeSeries.add(x, y);
-				MeshNode current = new MeshNode(i, new Location(x, y));
 				threads[i] = new Thread(current);
-				remoteNodes.add(current);
 				gateway.addNode(current);
+				remoteNodes.add(current);
+				ids.add(i);
 			}
 		}
-		
-		for (int i = 0; i < confLines.size(); i++) {
-			threads[i].start();
-		}
+		remoteNodes.add(gateway);
+		MeshDataGenerator generator = new MeshDataGenerator(ids);
+		MeshNetwork.getInstance().setMeshDataGenerator(generator);
 		
 		SwingUtilities.invokeLater(new Runnable() {
 			@Override
 			public void run() {
-				new MeshRunner(gatewaySeries, nodeSeries).setVisible(true);	
+				MeshRunner runner = new MeshRunner(remoteNodes, gatewaySeries, nodeSeries, false);	
+				runner.setVisible(true);
 			}
 		});	
+		for (int i = 0; i < confLines.size(); i++) {
+			threads[i].start();
+		}		
 	}
 }

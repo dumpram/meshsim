@@ -1,25 +1,39 @@
 package com.github.dumpram.mesh.node;
 
+import java.awt.Dimension;
+import java.awt.Graphics;
+import java.awt.Rectangle;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Random;
 import java.util.Timer;
 
+import javax.swing.JComponent;
+
 import com.github.dumpram.mesh.data.AbstractMeshData;
+import com.github.dumpram.mesh.data.ConfigAckMeshData;
 import com.github.dumpram.mesh.data.MeshDataType;
+import com.github.dumpram.mesh.data.MeshPacket;
+import com.github.dumpram.mesh.data.NormalStateMeshData;
+import com.github.dumpram.mesh.data.StartMeshData;
 import com.github.dumpram.mesh.network.MeshNetwork;
 
-public class MeshNode implements Runnable, Comparable<MeshNode> {
+public class MeshNode extends JComponent implements Runnable, Comparable<MeshNode> {
 	
-	private static final int HIGHEST_START_NUMBER = 5; // this can be number of nodes in list
+	private static final long serialVersionUID = 1L;
+
+	protected static final int HIGHEST_START_NUMBER = 5; // this can be number of nodes in list
 	
-	private static final int DELTA = 500; // millis
+	private static final int DELTA = 2000; // millis
 	
 	private Location location;
 	
 	protected ConfigData configData;
 	
-	private MeshData currentMeshData;
+	protected ConfigAckMeshData configAckMeshData;
+	
+	protected NormalStateMeshData currentMeshData;
 	
 	private MeshNetwork meshNetwork;
 	
@@ -27,13 +41,15 @@ public class MeshNode implements Runnable, Comparable<MeshNode> {
 	
 	private boolean data = false;
 	
-	private int id;
+	protected int id;
 	
 	private int startNumber; // for know is same as id
 	
 	private boolean isConfigured;
 	
 	private boolean isListening = true;
+	
+	private boolean sleeping = false;
 	
 	private boolean startEnable = false;
 	
@@ -42,6 +58,10 @@ public class MeshNode implements Runnable, Comparable<MeshNode> {
 	private MeshNodeEvent event;
 	
 	private boolean nextInterval;
+	
+	private String nodeAction;
+
+	private int highestStartNumber;
 	
 	public MeshNode(int id, Location location) {
 		this.location = location;
@@ -63,39 +83,50 @@ public class MeshNode implements Runnable, Comparable<MeshNode> {
 		onWakeUp();
 		nextInterval = false;
 		while(!startEnable) {
-			sleep(1);
+			sleep(10);
 		}
 		stopListening();
 		if (!configData.getChildNodes().isEmpty()) {
 			for (MeshNode i : configData.getChildNodes()) {
-				meshNetwork.sendStartData(this, i, null);
+				meshNetwork.sendStartData(this, i, new StartMeshData(highestStartNumber));
 			}
 		}
 		Timer t = new Timer();
-		t.schedule(new NodeTimerTask(this), 10 * 1000, 10 * 1000);
+		t.schedule(new NodeTimerTask(this), 20 * 1000, 20 * 1000);
 		do {
 			waitForDataFromMesh();
 			forwardDataToMesh();
+			setSleeping(true);
+			log("Next interval pending!");
 			while(!nextInterval) {
 				sleep(10);
 			}
+			setSleeping(false);
 			nextInterval = false;
 		} while (true);
 	}
 
 	private void waitForDataFromMesh() {
 		int deltas = 0;
+		this.currentMeshData = new NormalStateMeshData();
+		currentMeshData.addPacket(new MeshPacket(id, meshNetwork.getMeshDataGenerator().getData(id)));
 		Collections.sort(configData.getChildNodes());
 		for (int i = 0; i < configData.getChildNodes().size(); i++) {
-			int current = HIGHEST_START_NUMBER - configData.getChildNodes().get(i).startNumber;
-			log("Child index: " + i + " deltas: " + deltas + " current: " + current);
-			sleep((current - deltas) * DELTA);
-			log("Child index: " + i + " deltas: " + deltas);
+			int current = highestStartNumber - configData.getChildNodes().get(i).startNumber;
+			//log("Child index: " + i + " deltas: " + deltas + " current: " + current);
+			realSleep(deltas, current);
+			//log("Child index: " + i + " deltas: " + deltas);
 			deltas += (current - deltas);
 			getDataFromNode(configData.getChildNodes().get(i).id);
 		}
-		int current = HIGHEST_START_NUMBER - startNumber;
+		int current = highestStartNumber - startNumber;
+		realSleep(deltas, current);
+	}
+
+	private void realSleep(int deltas, int current) {
+		setSleeping(true);
 		sleep((current - deltas) * DELTA);
+		setSleeping(false);
 	}
 	
 	private void onWakeUp()  {
@@ -146,8 +177,9 @@ public class MeshNode implements Runnable, Comparable<MeshNode> {
 				realChildren.add(i);
 			}
 		}
+		int startNumberCnt = 1;
 		for (MeshNode i : realChildren) {
-			i.setStartNumber(realChildren.indexOf(i) + this.startNumber);
+			i.setStartNumber((startNumberCnt++) + this.startNumber);
 			ConfigData forExport = new ConfigData(i, notChildren);
 			forExport.addParent(this);
 			forExport.removeChildNode(i);
@@ -167,6 +199,9 @@ public class MeshNode implements Runnable, Comparable<MeshNode> {
 	
 	protected void waitForConfigAck() {
 		log(configData.getChildNodes().toString());
+		this.configAckMeshData = new ConfigAckMeshData(new ArrayList<Integer>());
+		log("My start number is: " + startNumber);
+		configAckMeshData.addNumberToList(startNumber);
 		
 		if (!configData.getChildNodes().isEmpty()) {
 			startListening();
@@ -181,7 +216,11 @@ public class MeshNode implements Runnable, Comparable<MeshNode> {
 		meshNetwork.sendConfigAckToParent(this, configData.getParent(), configData.getParent().configData);	
 	}
 	
-	private void getDataFromNode(int i) {
+	public ConfigAckMeshData getConfigAckMeshData() {
+		return configAckMeshData;
+	}
+
+	protected void getDataFromNode(int i) {
 		log("Waiting for data from: " + i);
 		startListening();
 		while(!data) {
@@ -220,14 +259,15 @@ public class MeshNode implements Runnable, Comparable<MeshNode> {
 	}
 
 	private void forwardDataToMesh() {
-		log("Forwarding data to mesh via parent: " + configData.getParent());
+		setSleeping(false);
+		log("Forward via parent: " + configData.getParent());
 		int retryTime = 100;
 		int cnt = 0;
-		while (!meshNetwork.setMeshData(this, configData.getParent()) && retryTime-- > 0) {
+		while (!meshNetwork.setMeshData(this, configData.getParent(), currentMeshData) && retryTime-- > 0) {
 			sleep(1);
 			cnt++;
 		}
-		log("Number of misses: " + cnt);
+		//log("Number of misses: " + cnt);
 	}
 	
 	// proposal for waiting routines
@@ -248,7 +288,7 @@ public class MeshNode implements Runnable, Comparable<MeshNode> {
 		}
 	}	
 	
-	public Location getLocation() {
+	public Location getNodeLocation() {
 		return location;
 	}
 	
@@ -265,9 +305,9 @@ public class MeshNode implements Runnable, Comparable<MeshNode> {
 		configDataSet = true;
 	}
 
-	public void setCurrentMeshData(MeshData meshData) {
-		currentMeshData = meshData;
-	}
+//	public void setCurrentMeshData(MeshData meshData) {
+//		currentMeshData = meshData;
+//	}
 	
 	// Timing problem
 	// for tree-like mesh structures, it would be enough 
@@ -295,8 +335,9 @@ public class MeshNode implements Runnable, Comparable<MeshNode> {
 	// however every node should only know the greatest start number because
 	// the greatest start is one which dictates zero moment on start 
 	// every other is calculated as (START_NUMBER - GREATEST) * DELTA...	
-	public void setMeshData() {
-		data = true;
+	public void setMeshData(NormalStateMeshData data) {
+		this.data = true;
+		currentMeshData.addPackets(data.getPackets());
 	}
 
 	public void receiveData(AbstractMeshData data) {
@@ -320,17 +361,27 @@ public class MeshNode implements Runnable, Comparable<MeshNode> {
 	
 	private void stopListening() {
 		isListening = false;
-		
+		repaint();
 	}
 
 	private void startListening() {
 		isListening = true;
-		
+		repaint();
 	}
 	
 	public boolean isListening() {
 		return isListening;
 	}
+	
+	public boolean isSleeping() {
+		return sleeping;
+	}
+
+	public void setSleeping(boolean sleeping) {
+		this.sleeping = sleeping;
+		repaint();
+	}
+
 	
 	public int getStartNumber() {
 		return startNumber;
@@ -341,6 +392,8 @@ public class MeshNode implements Runnable, Comparable<MeshNode> {
 	}
 
 	protected void log(String input) {
+		nodeAction = input;
+		repaint();
 		System.out.println("Node " + id + ": " + input);
 	}
 	
@@ -350,6 +403,32 @@ public class MeshNode implements Runnable, Comparable<MeshNode> {
 		} catch (InterruptedException e) {
 			e.printStackTrace();
 		}
+	}
+	
+	@Override
+	public Rectangle getBounds() {
+		int height = 100;
+		int width = 300;
+		int x = (int)location.getX() * 140 + 1366 / 2 - width / 2;
+		int y = -(int)location.getY() * 140 + 768 / 2 - height / 2;
+		return new Rectangle(x, y, width, height);
+	}
+	
+	@Override
+	public Dimension getPreferredSize() {
+		return new Dimension(110, 310);	
+	}
+
+	@Override
+	public void paintComponent(Graphics g) {
+		super.paintComponent(g);
+		Rectangle rect = getBounds();
+		g.drawOval(0, 0, 10, 10);
+		g.drawRect(0, 0, rect.width - 30, rect.height - 10);
+		g.drawString("Node id: " + id, 0,  30);
+		g.drawString("Node action:" + nodeAction, 0,  50);
+		//g.drawString("Node status: " + ((!sleeping)? "awake" : "sleep"), 0, 70);
+		g.drawString("Node start number: " + startNumber, 0, 70);
 	}
 		
 	@Override
@@ -388,8 +467,13 @@ public class MeshNode implements Runnable, Comparable<MeshNode> {
 		nextInterval = true;
 	}
 
-	public void startData(AbstractMeshData data2) {
-		startEnable = true;		
+	public void startData(StartMeshData data) {
+		startEnable = true;
+		highestStartNumber = data.getHighestStartNumber();
+	}
+
+	public void setConfigAckMeshData(ConfigAckMeshData configAckMeshData) {
+		this.configAckMeshData = configAckMeshData;
 	}
 }
 
