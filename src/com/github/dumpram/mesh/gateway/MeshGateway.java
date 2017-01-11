@@ -22,6 +22,7 @@ public class MeshGateway extends MeshNode {
 	public MeshGateway(int id, Location location) {
 		super(id, location);
 		childNodes = new ArrayList<MeshNode>();
+		this.isGateway = true;
 	}
 
 	public void run() {
@@ -92,6 +93,12 @@ public class MeshGateway extends MeshNode {
 	
 	public List<MeshNode> getNodes() {
 		return childNodes;
+	}
+	
+	@Override
+	protected void stopListening() {
+		isListening = true;
+		repaint();
 	}
 	
 	

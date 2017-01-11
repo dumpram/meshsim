@@ -49,6 +49,9 @@ public class MeshRunner extends JFrame {
 		for (MeshNode i : nodes) {
 			add(i);
 		};
+		LegendComponent comp = new LegendComponent();
+		comp.setBounds(comp.getBounds());
+		add(comp);
 	}
 
 	private void initChart(XYSeries gatewaySeries, XYSeries nodeSeries) {

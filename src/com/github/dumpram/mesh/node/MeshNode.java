@@ -1,12 +1,13 @@
 package com.github.dumpram.mesh.node;
 
+import java.awt.Color;
 import java.awt.Dimension;
+import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.Rectangle;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Random;
 import java.util.Timer;
 
 import javax.swing.JComponent;
@@ -25,9 +26,11 @@ public class MeshNode extends JComponent implements Runnable, Comparable<MeshNod
 
 	protected static final int HIGHEST_START_NUMBER = 5; // this can be number of nodes in list
 	
-	private static final int DELTA = 2000; // millis
+	private static final int DELTA = 3000; // millis
 	
 	private Location location;
+	
+	protected boolean isGateway;
 	
 	protected ConfigData configData;
 	
@@ -47,7 +50,7 @@ public class MeshNode extends JComponent implements Runnable, Comparable<MeshNod
 	
 	private boolean isConfigured;
 	
-	private boolean isListening = true;
+	protected boolean isListening = true;
 	
 	private boolean sleeping = false;
 	
@@ -92,7 +95,7 @@ public class MeshNode extends JComponent implements Runnable, Comparable<MeshNod
 			}
 		}
 		Timer t = new Timer();
-		t.schedule(new NodeTimerTask(this), 20 * 1000, 20 * 1000);
+		t.schedule(new NodeTimerTask(this), 15 * 1000, 15 * 1000);
 		do {
 			waitForDataFromMesh();
 			forwardDataToMesh();
@@ -212,7 +215,7 @@ public class MeshNode extends JComponent implements Runnable, Comparable<MeshNod
 			log(configData.getChildNodes().toString());
 			stopListening();
 		}
-		log("Sending ack to parent: " + configData.getParent());
+		log("Send ack to parent: " + configData.getParent());
 		meshNetwork.sendConfigAckToParent(this, configData.getParent(), configData.getParent().configData);	
 	}
 	
@@ -221,7 +224,7 @@ public class MeshNode extends JComponent implements Runnable, Comparable<MeshNod
 	}
 
 	protected void getDataFromNode(int i) {
-		log("Waiting for data from: " + i);
+		log("Waiting data from: " + i);
 		startListening();
 		while(!data) {
 			sleep(1);
@@ -359,7 +362,7 @@ public class MeshNode extends JComponent implements Runnable, Comparable<MeshNod
 		//		- should contain: some form of data??		
 	}
 	
-	private void stopListening() {
+	protected void stopListening() {
 		isListening = false;
 		repaint();
 	}
@@ -422,9 +425,24 @@ public class MeshNode extends JComponent implements Runnable, Comparable<MeshNod
 	@Override
 	public void paintComponent(Graphics g) {
 		super.paintComponent(g);
+		Color c = (isSleeping() && !isListening) ? Color.GREEN : Color.ORANGE;
+		boolean isParent = !configData.getChildNodes().isEmpty();
+		
+		if (isParent && !isGateway) {
+			c = Color.MAGENTA;
+		}
+		
+		
+		
 		Rectangle rect = getBounds();
 		g.drawOval(0, 0, 10, 10);
 		g.drawRect(0, 0, rect.width - 30, rect.height - 10);
+		g.setColor(c);
+		g.fillRect(0, 0, rect.width - 30, rect.height - 10);
+		g.setColor(Color.BLACK);
+		Font f = g.getFont();
+		Font f2 = new Font(f.getFontName(), Font.BOLD, f.getSize() + 1);
+		g.setFont(f2);
 		g.drawString("Node id: " + id, 0,  30);
 		g.drawString("Node action:" + nodeAction, 0,  50);
 		//g.drawString("Node status: " + ((!sleeping)? "awake" : "sleep"), 0, 70);
