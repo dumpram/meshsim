@@ -15,7 +15,7 @@ public class ConfigData {
 	public HashMap<MeshNode, Boolean> configAckMap = new HashMap<MeshNode, Boolean>();
 	
 	public ConfigData(MeshNode node, List<MeshNode> list) {
-		this.node = node;
+		this.setNode(node);
 		childNodeList = new ArrayList<MeshNode>();
 		for (MeshNode i : list) {
 			childNodeList.add(i);
@@ -45,5 +45,13 @@ public class ConfigData {
 
 	public void setChildNodes(List<MeshNode> realChildren) {
 		childNodeList = realChildren;	
+	}
+
+	public MeshNode getNode() {
+		return node;
+	}
+
+	public void setNode(MeshNode node) {
+		this.node = node;
 	}
 }

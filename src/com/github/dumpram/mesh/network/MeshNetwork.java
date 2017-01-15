@@ -1,6 +1,9 @@
 package com.github.dumpram.mesh.network;
 
-import com.github.dumpram.mesh.data.AbstractMeshData;
+import java.util.Timer;
+import java.util.TimerTask;
+import java.util.concurrent.atomic.AtomicLong;
+
 import com.github.dumpram.mesh.data.NormalStateMeshData;
 import com.github.dumpram.mesh.data.StartMeshData;
 import com.github.dumpram.mesh.gateway.MeshGateway;
@@ -20,8 +23,21 @@ public class MeshNetwork implements Runnable {
 	
 	private MeshDataGenerator generator;
 	
+	private Timer t = new Timer();
+	
+	private final AtomicLong millis = new AtomicLong(0);
+	
 	private MeshNetwork() {
 		//gateway = new MeshGateway();
+		t.schedule(new TimerTask() {
+
+			@Override
+			public void run() {
+				millis.incrementAndGet();
+			}
+			
+		}, 1, 1);
+		
 	}
 	
 	@Override
@@ -111,14 +127,6 @@ public class MeshNetwork implements Runnable {
 		return sendable;
 	}
 	
-	public boolean sendData(MeshNode sender, MeshNode listener, AbstractMeshData data) {
-		boolean sendable = isSendable(sender, listener);
-		synchronized(listener) {
-			listener.receiveData(data);
-		}
-		return sendable;
-	}
-	
 	public boolean isSendable(MeshNode sender, MeshNode listener) {
 		return areCloseEnough(sender, listener) && listener.isListening();
 	}
@@ -137,6 +145,10 @@ public class MeshNetwork implements Runnable {
 	
 	public MeshDataGenerator getMeshDataGenerator() {
 		return generator;
+	}
+	
+	public long getMillis() {
+		return millis.get();
 	}
 }
 	

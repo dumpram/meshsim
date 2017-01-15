@@ -1,12 +1,18 @@
 package com.github.dumpram.mesh.runner;
 
+import java.awt.BorderLayout;
+import java.awt.Dimension;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 
+import javax.swing.JButton;
 import javax.swing.JFrame;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JToolBar;
 import javax.swing.SwingUtilities;
 
 import org.jfree.chart.ChartFactory;
@@ -29,29 +35,43 @@ public class MeshRunner extends JFrame {
 	
 	private JFreeChart chart;
 	
+	private JScrollPane pane;
+	
+	private JPanel panel = new JPanel();
+	
+	private JToolBar toolbar = new JToolBar();
+	
 	public MeshRunner(List<MeshNode> nodes, XYSeries gatewaySeries, XYSeries nodeSeries, boolean
 			map) {
 		setTitle("MeshSim v0.0.1");
 		setSize(600, 600);
+		setLayout(new BorderLayout());
 		
 		if (map) {
 			initChart(gatewaySeries, nodeSeries);
 		} else {
 			initLogMap(nodes);
 		}
+		JButton button = new JButton("Show status");
+		toolbar.add(button);
+		add(toolbar, BorderLayout.BEFORE_FIRST_LINE);
 	}
 
 	private void initLogMap(List<MeshNode> nodes) {
-		setLayout(null);
+		panel.setLayout(null);
 		for (MeshNode i : nodes) {
 			i.setBounds(i.getBounds());
 		}
 		for (MeshNode i : nodes) {
-			add(i);
+			panel.add(i);
 		};
-		LegendComponent comp = new LegendComponent();
-		comp.setBounds(comp.getBounds());
-		add(comp);
+		panel.setPreferredSize(new Dimension(2000, 2000));
+		pane = new JScrollPane(panel);
+		add(pane, BorderLayout.CENTER);
+		
+//		LegendComponent comp = new LegendComponent();
+//		comp.setBounds(comp.getBounds());
+//		add(comp);
 	}
 
 	private void initChart(XYSeries gatewaySeries, XYSeries nodeSeries) {
