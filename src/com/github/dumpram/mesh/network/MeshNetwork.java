@@ -26,6 +26,8 @@ public class MeshNetwork implements Runnable {
 	private Timer t = new Timer();
 	
 	private final AtomicLong millis = new AtomicLong(0);
+
+	private boolean status;
 	
 	private MeshNetwork() {
 		//gateway = new MeshGateway();
@@ -149,6 +151,14 @@ public class MeshNetwork implements Runnable {
 	
 	public long getMillis() {
 		return millis.get();
+	}
+
+	public void setStatus(boolean status) {
+		this.status = status;
+	}
+	
+	public boolean getStatus() {
+		return status;
 	}
 }
 	

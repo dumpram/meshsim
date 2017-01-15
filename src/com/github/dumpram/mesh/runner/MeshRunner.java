@@ -2,6 +2,8 @@ package com.github.dumpram.mesh.runner;
 
 import java.awt.BorderLayout;
 import java.awt.Dimension;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -52,8 +54,23 @@ public class MeshRunner extends JFrame {
 		} else {
 			initLogMap(nodes);
 		}
-		JButton button = new JButton("Show status");
+		final JButton button = new JButton("Show status");
 		toolbar.add(button);
+		
+		MeshNetwork.getInstance().setStatus(true);
+		
+		button.addActionListener(new ActionListener() {
+
+			@Override
+			public void actionPerformed(ActionEvent e) {
+				boolean status = MeshNetwork.getInstance().getStatus();
+				MeshNetwork.getInstance().setStatus(!status);
+				String text = (status) ? "Hide status" : "Show status";
+				button.setText(text);
+				repaint();
+			}
+		});
+		
 		add(toolbar, BorderLayout.BEFORE_FIRST_LINE);
 	}
 
@@ -69,9 +86,9 @@ public class MeshRunner extends JFrame {
 		pane = new JScrollPane(panel);
 		add(pane, BorderLayout.CENTER);
 		
-//		LegendComponent comp = new LegendComponent();
-//		comp.setBounds(comp.getBounds());
-//		add(comp);
+		LegendComponent comp = new LegendComponent(pane.getViewport());
+		comp.setBounds(comp.getBounds());
+		panel.add(comp);
 	}
 
 	private void initChart(XYSeries gatewaySeries, XYSeries nodeSeries) {
