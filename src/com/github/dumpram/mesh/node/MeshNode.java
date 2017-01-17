@@ -29,9 +29,9 @@ public class MeshNode extends JComponent implements Runnable, Comparable<MeshNod
 	protected static final int HIGHEST_START_NUMBER = 5; // this can be number
 															// of nodes in list
 
-	protected final int MONOTONIC_INTERVAL = 10000; // millis
+	protected int MONOTONIC_INTERVAL = 10000; // millis
 
-	private static final int DELTA = 3000; // milliseconds
+	private static int DELTA = 3000; // milliseconds
 
 	private Location location;
 
@@ -74,6 +74,8 @@ public class MeshNode extends JComponent implements Runnable, Comparable<MeshNod
 	protected Image img;
 
 	public MeshNode(int id, Location location) {
+		MONOTONIC_INTERVAL = MeshNetwork.props.get("Tsync").intValue();
+		DELTA = MeshNetwork.props.get("Ts").intValue();
 		this.location = location;
 		this.id = id;
 		meshNetwork = MeshNetwork.getInstance();
@@ -386,10 +388,10 @@ public class MeshNode extends JComponent implements Runnable, Comparable<MeshNod
 			g.drawString("Node start number: " + startNumber, 0, 50);
 			long time = (!isGateway) ? (long) (awakeTime / 1e6) : meshNetwork.getMillis();
 			g.drawString("Awake time:" + time + " ms", 0, 70);
-			double energyConsumption = 20 * time / 3600.0;
+			double energyConsumption = MeshNetwork.props.get("I_max") * time / 3600.0;
 			String result = String.format("%.2f", energyConsumption);
 			g.drawString("Energy consumption:" + result + "mAh", 0, 90);
-			double estimatedLiving = 4000.0 / (energyConsumption / ((meshNetwork.getMillis() / 1000.0) / 3600.0));
+			double estimatedLiving = MeshNetwork.props.get("C_bat") / (energyConsumption / ((meshNetwork.getMillis() / 1000.0) / 3600.0));
 			String estimation = String.format("%.2f", estimatedLiving);
 			g.drawString("Estimated living:" + estimation + " h", 0, 110);
 		}

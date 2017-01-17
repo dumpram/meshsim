@@ -1,5 +1,6 @@
 package com.github.dumpram.mesh.network;
 
+import java.util.HashMap;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.atomic.AtomicLong;
@@ -15,7 +16,7 @@ import com.github.dumpram.mesh.runner.MeshDataGenerator;
 
 public class MeshNetwork implements Runnable {
 	
-	public static final double MESH_RADIO_LIMIT = Math.sqrt(2);
+	public  double MESH_RADIO_LIMIT = Math.sqrt(2);
 	
 	private MeshGateway gateway;
 	
@@ -28,6 +29,19 @@ public class MeshNetwork implements Runnable {
 	private final AtomicLong millis = new AtomicLong(0);
 
 	private boolean status;
+	
+	public static HashMap<String, Double> props = new HashMap<String, Double>();
+	
+	static {
+		props.put("SuccessRatio", 1.0);
+		props.put("I_max", 20.0);
+		props.put("V_max", 3.3);
+		props.put("V_min", 1.8);
+		props.put("C_bat", 4000.0);
+		props.put("Ts", 1.0);
+		props.put("Tsync", 10.0);
+		props.put("mdist", Math.sqrt(2));
+	}
 	
 	private MeshNetwork() {
 		//gateway = new MeshGateway();
@@ -78,7 +92,7 @@ public class MeshNetwork implements Runnable {
 		double y1 = loc1.getY();
 		double y2 = loc2.getY();
 		boolean forExport = Math.sqrt(Math.pow(x1-x2, 2) + Math.pow(y1-y2, 2)) <= MESH_RADIO_LIMIT;
-		return forExport;
+		return forExport && Math.random() <= props.get("SuccessRatio");
 		
 	}
 	
@@ -160,5 +174,6 @@ public class MeshNetwork implements Runnable {
 	public boolean getStatus() {
 		return status;
 	}
+	
 }
 	

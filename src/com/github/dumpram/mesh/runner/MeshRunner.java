@@ -2,6 +2,8 @@ package com.github.dumpram.mesh.runner;
 
 import java.awt.BorderLayout;
 import java.awt.Dimension;
+import java.awt.Point;
+import java.awt.Rectangle;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.IOException;
@@ -12,6 +14,8 @@ import java.util.List;
 
 import javax.swing.JButton;
 import javax.swing.JFrame;
+import javax.swing.JMenu;
+import javax.swing.JMenuBar;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JToolBar;
@@ -43,6 +47,8 @@ public class MeshRunner extends JFrame {
 	
 	private JToolBar toolbar = new JToolBar();
 	
+	private JMenuBar menu = new JMenuBar();
+	
 	public MeshRunner(List<MeshNode> nodes, XYSeries gatewaySeries, XYSeries nodeSeries, boolean
 			map) {
 		setTitle("MeshSim v0.0.1");
@@ -55,9 +61,16 @@ public class MeshRunner extends JFrame {
 			initLogMap(nodes);
 		}
 		final JButton button = new JButton("Show status");
+		final JButton centerButton = new JButton("Center view");
 		toolbar.add(button);
+		toolbar.add(centerButton);
 		
 		MeshNetwork.getInstance().setStatus(true);
+		
+		menu.add(new JMenu("File"));
+		menu.add(new JMenu("Edit"));
+		menu.add(new JMenu("View"));
+		menu.add(new JMenu("Help"));
 		
 		button.addActionListener(new ActionListener() {
 
@@ -71,6 +84,19 @@ public class MeshRunner extends JFrame {
 			}
 		});
 		
+		centerButton.addActionListener(new ActionListener() {
+
+			@Override
+			public void actionPerformed(ActionEvent e) {
+				Rectangle bounds = pane.getViewport().getViewRect();
+				Dimension size = pane.getViewport().getViewSize();
+				int x = (size.width - bounds.width) / 2;
+				int y = (size.height - bounds.height) / 2;
+				pane.getViewport().setViewPosition(new Point(x, y));
+			}
+		});
+		
+		setJMenuBar(menu);
 		add(toolbar, BorderLayout.BEFORE_FIRST_LINE);
 	}
 
@@ -115,13 +141,23 @@ public class MeshRunner extends JFrame {
 		XYSeries gatewaySeries = new XYSeries("Gateway points");
 		XYSeries nodeSeries = new XYSeries("Node points");
 		
-		if (args.length != 1) {
-			System.out.println("Provide path to input file!");
+		if (args.length != 2) {
+			System.out.println("Provide path to input files!");
 			return;
 		}
 		
-		List<String> confLines = Files.readAllLines(Paths.get(args[0]));		
-		nodeCount = confLines.size();
+		List<String> confLines = Files.readAllLines(Paths.get(args[1]));
+		for (String line : confLines) {
+			if (line.trim().isEmpty() || line.trim().startsWith("#")) {
+				continue;
+			}
+			String parts[] = line.trim().split("=");
+			MeshNetwork.props.put(parts[0].trim(), Double.parseDouble(parts[1].trim()));
+		}
+		//MeshNetwork.getInstance().MESH_RADIO_LIMIT = MeshNetwork.props.get("mdist");
+		
+		List<String> nodeLines = Files.readAllLines(Paths.get(args[0]));		
+		nodeCount = nodeLines.size();
 		Thread[] threads = new Thread[nodeCount];
 	
 		List<MeshNode> remoteNodes = new ArrayList<MeshNode>();
@@ -129,8 +165,8 @@ public class MeshRunner extends JFrame {
 		
 		List<Integer> ids = new ArrayList<Integer>();
 		
-		for (int i = 0; i < confLines.size(); i++) {
-			String[] parts = confLines.get(i).split(" ");
+		for (int i = 0; i < nodeLines.size(); i++) {
+			String[] parts = nodeLines.get(i).split(" ");
 			int x = Integer.parseInt(parts[0]);
 			int y = Integer.parseInt(parts[1]);
 			boolean isGateway = (i == 0) ? true : false;
@@ -158,7 +194,7 @@ public class MeshRunner extends JFrame {
 				runner.setVisible(true);
 			}
 		});	
-		for (int i = 0; i < confLines.size(); i++) {
+		for (int i = 0; i < nodeLines.size(); i++) {
 			threads[i].start();
 		}		
 	}

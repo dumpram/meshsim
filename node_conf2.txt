@@ -1,0 +1,31 @@
+# This is configuration file for network simulator 
+# You can provide following parameters:
+#
+# 	SuccessRatio - probability of successful propagation of data
+# 	I_max - maximum current consumption
+#	V_max - maximum voltage
+# 	V_min - minimum voltage
+#	C_bat - capacity of battery 
+#   Ts 	  - time slice length
+#   Tsync - length of monotonic interval
+#   mdist - radio distance 
+
+# [0, 1] - probability 
+SuccessRatio = 1.0
+
+# Current in mA 
+I_max = 20.0
+
+# Voltage in V
+V_max = 3.3 
+V_min = 1.8
+
+# Time in ms 
+Ts = 3000.0
+Tsync = 10000.0
+
+# C_bat in mAh
+C_bat = 4000.0
+
+# mdist
+mdist = 1.41421
